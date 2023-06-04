@@ -3,25 +3,51 @@ var asteroids = [];
 var bullets = [];
 var score = 0;
 const sound = new Audio("beep.wav");
-function setup() {
+const sound2 = new Audio("crash.wav");
+var initial_asteroid_number = 10;
+var epochTime = new Date().getTime();
+var time_limit = 5 * 1000;
+var game_over = false;
+var game_over_time = -1;
+
+function my_setup(){
   createCanvas(windowWidth, windowHeight);
-  console.log(width);
-  console.log(height);
   player = new Player()
   player.set_heading(get_angle());
-  for(var i=0;i<10;i++){
+  asteroids = [];
+  bullets = [];
+  score = 0;
+  epochTime = new Date().getTime();
+  time_limit = 5 * 1000;
+  for (var i = 0; i < initial_asteroid_number; i++) {
     asteroids.push(new Asteroid());
   }
-  for(var i=0;i<10;i++){
+  for (var i = 0; i < initial_asteroid_number; i++) {
     asteroids[i].set_size();
     asteroids[i].set_pos();
     asteroids[i].set_vel();
   }
-
+}
+function setup() {
+  my_setup();
 }
 function draw() {
-  background(90);
-  update_values();
+  textAlign(CENTER);
+  if(game_over){
+    background(0, 0, 0);
+    var game_over_text = "Game Over\n Your score: " + score;
+    textSize(40);
+    fill(255, 0, 0);
+    text(game_over_text, windowWidth/2, windowHeight/2);
+    if(new Date().getTime() - game_over_time > (5000)){
+      game_over = false;
+      my_setup();
+    }
+  }
+  else{
+    background(0);
+    update_values();
+  } 
 }
 function keyPressed() {
 
@@ -65,8 +91,11 @@ get_angle = function(){
 }
 update_values = function(){
   var score_text = "Score = "+score;
+  console.log(score_text);
+  console.log(score_text.length);
   textSize(40);
-  text(score_text,width-250,50);
+  fill(255,0,0);
+  text(score_text,windowWidth-250,50);
   player.set_heading(get_angle())
   player.render();
   player.move();
@@ -80,7 +109,6 @@ update_values = function(){
   }
 
   for(var i=0;i<bullets.length;i++){
-    // bullets[i].move();
     bullets[i].render();
     bullets[i].move();
   }
@@ -94,39 +122,81 @@ distance = function(bullet,asteroid){
   delta_y*=delta_y;
   delta_x*=delta_x;
   var ans = sqrt(delta_y+delta_x);
-  console.log(ans);
   return ans;
 }
 update_asteroid_list = function(){
-  for(var i=0;i<asteroids.length;i++){
-    if(!asteroids[i].destroyed){
-
-    }
-    else{
-      asteroids[i] = new Asteroid();
-      asteroids[i].set_size();
-      asteroids[i].set_pos();
-      asteroids[i].set_vel();
+  
+  var temp = []
+  for (var i = 0; i < asteroids.length; i++) {
+    if (!asteroids[i].destroyed) {
+      temp.push(asteroids[i]);
     }
   }
+  asteroids = temp;
+  if ((new Date().getTime() - epochTime >= (time_limit)) && asteroids.length < 20)
+  {
+      epochTime = new Date().getTime();
+      time_limit = max(time_limit - 200,2000);
+      var na = new Asteroid();
+      na.size = 80;
+      na.set_pos();
+      na.set_vel();
+      asteroids.push(na);
+  }
+}
+update_bullet_list = function(){
+  var temp = []
+  for (var i = 0; i < bullets.length; i++) {
+    if (!bullets[i].destroyed) {
+      temp.push(bullets[i]);
+    }
+  }
+  bullets = temp;
 }
 check_collision = function(){  
   update_asteroid_list();
+  update_bullet_list();
   for(var j=0;j<asteroids.length;j++){
     for(var i=0;i<bullets.length;i++){
       asteroids[j].hit_time=Math.max(0,asteroids[j].hit_time-1);
       if(distance(bullets[i],asteroids[j])<(asteroids[j].size)){
-        if(asteroids[j].hit_time==0 && !asteroids.destroyed){
-          if(asteroids[j].size==40){
-            asteroids[j].destroyed=true;
-            score+=1;
-            sound.play();
+        if (!asteroids[j].destroyed){
+          asteroids[j].destroyed = true;
+          bullets[i].destroyed = true;
+          score += 1;
+          sound.play();
+          if (80==asteroids[j].size){
+            var temp = new Asteroid();
+            temp.size = 60;
+            temp.pos.x = asteroids[j].pos.x;
+            temp.pos.y = asteroids[j].pos.y;
+            translate(temp.pos.x, temp.pos.y);
+            temp.set_vel();
+            asteroids.push(temp);
           }
-          else{
-            asteroids[j].size-=10;
+          else if (60 == asteroids[j].size) {
+            var temp = new Asteroid();
+            temp.size = 40;
+            temp.pos.x = asteroids[j].pos.x;
+            temp.pos.y = asteroids[j].pos.y;
+            translate(temp.pos.x, temp.pos.y);
+            temp.set_vel();
+            asteroids.push(temp);
           }
-          asteroids[j].hit_time=10;
         }
+      }
+    }
+  }
+  for (var j = 0; j < asteroids.length; j++){
+    if (!asteroids[j].destroyed){
+      if(distance(player, asteroids[j]) < (asteroids[j].size + 10)){
+        game_over = true;
+        game_over_time = new Date().getTime();
+        sound2.play();
+        setTimeout(() => {
+          sound2.pause();
+          sound2.currentTime = 0;
+        },1000);
       }
     }
   }
@@ -134,7 +204,7 @@ check_collision = function(){
 
 function Player(){
   this.pos = createVector(width/2,height/2)
-  this.size = 20;
+  this.size = 25;
   this.heading = 0;
   this.velocity = createVector(0,0);
   this.acc = createVector(0,0);
@@ -148,35 +218,6 @@ function Player(){
   this.last_fire=0;
 
   this.move = function(){
-    // vel_x =0 ;
-    // vel_y = 0;
-    // if(this.move_up){
-    //   vel_y-=this.unit_speed;
-    // }
-    // if(this.move_down){
-    //   vel_y+=this.unit_speed;
-    // }
-    // if(this.move_right){
-    //   vel_x+=this.unit_speed;
-    // }
-    // if(this.move_left){
-    //   vel_x-=this.unit_speed;
-    // }
-    // this.velocity.x+=vel_x;
-    // this.velocity.y+=vel_y;
-    // if(this.velocity.x<-2){
-    //   this.velocity.x=-2;
-    // }
-    // if(this.velocity.x>2){
-    //   this.velocity.x=2;
-    // }
-    // if(this.velocity.y<-2){
-    //   this.velocity.y=-2;
-    // }
-    // if(this.velocity.y>2){
-    //   this.velocity.y=2;
-    // }
-
 
     velx = player.velocity.x;
     vely = player.velocity.y;
@@ -199,27 +240,16 @@ function Player(){
     this.pos.add(this.velocity)
     this.velocity.x*=0.98;
     this.velocity.y*=0.98;
-    // if(this.velocity.x<0){
-    //   this.velocity.x=Math.min(0,this.velocity.x+this.unit_speed*(0.4));
-    // }
-    // if(this.velocity.y<0){
-    //   this.velocity.y=Math.min(0,this.velocity.y+this.unit_speed*(0.4));
-    // }
-    // if(this.velocity.x>0){
-    //   this.velocity.x=Math.max(0,this.velocity.x-this.unit_speed*(0.4));
-    // }
-    // if(this.velocity.y>0){
-    //   this.velocity.y=Math.max(0,this.velocity.y-this.unit_speed*(0.4));
-    // }
+
     this.fire_bullet = function(){
       if(this.fire && this.last_fire==0){
         var temp = new Bullet();
       temp.pos.x = this.pos.x;
       temp.pos.y = this.pos.y;
       temp.velocity = p5.Vector.fromAngle(this.heading);
-      temp.velocity.mult(2);
+      temp.velocity.mult(7);
       bullets.push(temp);
-      this.last_fire=20;
+      this.last_fire=30;
       }
       this.last_fire = Math.max(0,this.last_fire-1);
     }
@@ -249,7 +279,9 @@ function Player(){
     push();
     translate(this.pos.x,this.pos.y);
     rotate(this.heading + radians(+90))
-    stroke(255);
+    fill(0, 0, 255);
+    stroke(255, 255, 255);
+    strokeWeight(2);
     triangle(-this.size, this.size, this.size, this.size, 0, -this.size);
     pop();
   }
@@ -270,13 +302,14 @@ function Asteroid(){
   this.render = function(){
     push();
     translate(this.pos.x,this.pos.y);
+    fill(100,100 , 100);
     ellipse(0,0,this.size);
-    noFill();
+    // noFill();
     // stroke(220,20,60);
     pop();
   }
   this.set_size = function(){
-    this.size = random([2,2.5,3]);
+    this.size = random([2,3,4]);
     this.size*=20;
   }
   this.set_pos  = function(){
@@ -312,14 +345,16 @@ function Asteroid(){
 function Bullet(){
   this.pos = createVector();
   this.velocity = createVector();
+  this.destroyed = false;
+  
 
   this.move = function(){
     this.pos.add(this.velocity);
   }
   this.render = function(){
     push();
-    stroke(255);
-    strokeWeight(10 );
+    stroke(255,255,0);
+    strokeWeight(10);
     point(this.pos.x,this.pos.y);
     pop();
   }
